@@ -52,6 +52,7 @@ public class MCEBK {
 				continue;
 			CPD top = new CPD(node, 1, candInit, excl);
 			addIntoStack(top);
+//			stack.add(top);
 			while (!stack.empty()) {
 				top = stack.pop();
 				HashSet<Integer> notset = top.getExcl();
@@ -218,7 +219,6 @@ public class MCEBK {
 //		writer.write(sb.toString().trim());
 //		writer.write("\n");
 //		sb.setLength(0);
-//		System.out.println(sb.toString());
 		cliqueNum++;
 	}
 
@@ -237,6 +237,11 @@ public class MCEBK {
 			throws NumberFormatException, IOException {
 		BufferedReader reader = new BufferedReader(new FileReader(filename));
 		String line = "";
+		line = reader.readLine();
+		if(!line.contains("\t"))
+			split = " ";
+		reader.close();
+		reader = new BufferedReader(new FileReader(filename));
 		while ((line = reader.readLine()) != null) {
 //			String[] edgepoint = line.split(" ");
 //			int node1 = Integer.valueOf(edgepoint[0]);

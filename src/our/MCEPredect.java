@@ -27,6 +27,7 @@ public class MCEPredect {
 	public static int treesize = 0;
 	public static Stack<Status> stack = new Stack<Status>();
 
+	static int dup = 0;//这个用来统计通过not集判断allcontains的节点个数
 	/**
 	 * @param args
 	 * @throws IOException
@@ -55,6 +56,7 @@ public class MCEPredect {
 			Status size1_status = new Status(node, 1, ren, candInit, excl,
 					null, null);
 			addIntoStack(size1_status);// 程序有个不变条件:stack中的子图都是可以切分的,无意义的子图不加到stack中
+//			stack.add(size1_status);//这里想看下用clique切分的效果,size-1子图的数目先不算
 			while (!stack.empty()) {
 				Status top = stack.pop();
 				ResultNode prsn = top.getRen();
@@ -68,8 +70,10 @@ public class MCEPredect {
 				TreeMap<Integer, HashSet<Integer>> od2c;
 				Integer level = top.getLevel();
 				if (level + cand.size() < minCliqueSize
-						|| allContained(cand, notset))
+						|| allContained(cand, notset)){
+					dup++;
 					continue;
+				}
 				d2c = top.getDeg2cand();
 				od2c = top.getOd2c();
 				if (d2c == null) {// 初始状态或者右边包含某个点的子图,度数集合需要新计算
@@ -88,44 +92,60 @@ public class MCEPredect {
 					boolean finishedthis = false;// 这个子图有没有切完
 					/** 这里是Predetect的主要逻辑,要求尽快从cand找出一个不被not集中的点都邻接的小clique */
 					// 先找单个的不与not集中的点都相邻的点
-					HashSet<Integer> unconnected = getUnConnectedPoints(
-							cand.size(), od2c, notset);
-					while (!unconnected.isEmpty()) {//第一个点的候选点必然都是不相邻的；有个问题,直接切分是按第一次的度数大小排序,没有使用之后的度数更新值也就是说每次切分的不是最小度数点
-						Iterator<Integer> iter = unconnected.iterator();
-						aim = iter.next();
-						iter.remove();// 用过就没用了
-						mindeg = cand.get(aim);
-						HashMap<Integer, Integer> aimSet = updateMarkDeg(aim,
-								mindeg, cand, d2c, od2c);
-						if (level + aimSet.size() + 1 >= minCliqueSize) {
-							HashSet<Integer> aimnotset = genInterSet(notset,
-									aim);
-							Status ss = new Status(aim, level + 1,
-									new ResultNode(prsn, aim), aimSet,
-									aimnotset, null, null);
-							addIntoStack(ss);
-						}
-						notset.add(aim);
-						unconnected.removeAll(graph.get(aim));// aim点加入到not集中,要更新unconnected
-						if (judgeClique(d2c)) {
-							finishedthis = true;
-							if (cand.size() > 0) {
-								Map.Entry<Integer, HashSet<Integer>> lastEntry = od2c
-										.lastEntry();
-								aim = lastEntry.getValue().iterator().next();
-								notset.retainAll(graph.get(aim));
-							}
-							if (level + cand.size() < minCliqueSize)
-								break;
-							if (allContained(cand, notset))
-								break;
-							emitClique(prsn, cand);
-							break;
-						}
-					}
+//					HashSet<Integer> unconnected = getUnConnectedPoints(
+//							cand.size(), od2c, notset);
+//					while (!unconnected.isEmpty()) {// 第一个点的候选点必然都是不相邻的；有个问题,直接切分
+//													//是按第一次的度数大小排序,没有使用之后的度数更新值也就
+//													//是说每次切分的不是最小度数点
+////						Iterator<Integer> iter = unconnected.iterator();
+////						aim = iter.next();
+////						iter.remove();// 用过就没用了
+////						mindeg = cand.get(aim);
+//						boolean foundpoint = false;
+//						for(Set<Integer> ns:od2c.values()){
+//							for(Integer cpoint:ns){//这样做应该可以保证用最小度数切,但是会带来重复扫描的性能损失
+//								if(unconnected.contains(cpoint)){
+//									aim = cpoint;
+//									mindeg = cand.get(aim);
+//									unconnected.remove(cpoint);
+//									foundpoint = true;
+//									break;
+//								}
+//							}
+//							if(foundpoint)
+//								break;
+//						}
+//						HashMap<Integer, Integer> aimSet = updateMarkDeg(aim,
+//								mindeg, cand, d2c, od2c);
+//						if (level + aimSet.size() + 1 >= minCliqueSize) {
+//							HashSet<Integer> aimnotset = genInterSet(notset,
+//									aim);
+//							Status ss = new Status(aim, level + 1,
+//									new ResultNode(prsn, aim), aimSet,
+//									aimnotset, null, null);
+//							addIntoStack(ss);
+//						}
+//						notset.add(aim);
+//						unconnected.removeAll(graph.get(aim));// aim点加入到not集中,要更新unconnected
+//						if (judgeClique(d2c)) {
+//							finishedthis = true;
+//							if (cand.size() > 0) {
+//								Map.Entry<Integer, HashSet<Integer>> lastEntry = od2c
+//										.lastEntry();
+//								aim = lastEntry.getValue().iterator().next();
+//								notset.retainAll(graph.get(aim));
+//							}
+//							if (level + cand.size() < minCliqueSize)
+//								break;
+//							if (allContained(cand, notset))
+//								break;
+//							emitClique(prsn, cand);
+//							break;
+//						}
+//					}
 					if (finishedthis)
 						continue;
-					while (cand.size() + level > minCliqueSize && !finishedthis) {// &&
+					while (cand.size() + level > minCliqueSize && cand.size()>1 && !finishedthis) {// &&
 																					// cand.size()
 																					// >
 																					// 1这一段在前面的judgeclique里面已经保证
@@ -137,19 +157,20 @@ public class MCEPredect {
 						HashMap<Integer, Integer> aimSet = updateMarkDeg(aim,
 								mindeg, cand, d2c, od2c);
 						List<Integer> clique = null;
+						HashSet<Integer> aimnotset = null;
+						Status ss=null;
 						if (level + aimSet.size() + 1 >= minCliqueSize) {
-							HashSet<Integer> aimnotset = genInterSet(notset,
+							aimnotset = genInterSet(notset,
 									aim);
-							Status ss = new Status(aim, level + 1,
+							 ss = new Status(aim, level + 1,
 									new ResultNode(prsn, aim), aimSet,
 									aimnotset, null, null);
-							treesize++;// 因为ss这个子图没有在其他地方加入,这里要计数
-							clique = getSmallestUnCoveredCliuqe(ss, stack);
 						}
 						notset.add(aim);
-						if (clique == null) {// 没有找到这样一个小clique,则这个点无效,删除
 							if (judgeClique(d2c)) {
 								finishedthis = true;
+								if(ss!=null)
+									addIntoStack(ss);
 								if (cand.size() > 0) {
 									Map.Entry<Integer, HashSet<Integer>> lastEntry = od2c
 											.lastEntry();
@@ -164,8 +185,35 @@ public class MCEPredect {
 								emitClique(prsn, cand);
 								break;
 							}
-						} else {// 找到了这样一个小clique,以这个clique的点作为切分点,切分子图
-							for (Integer an : clique) {
+							if (level + aimSet.size() + 1 >= minCliqueSize) {
+							if(aimnotset.isEmpty()){
+								addIntoStack(ss);
+							}else{
+								treesize++;// 因为ss这个子图没有在其他地方加入,这里要计数
+								clique = getSmallestUnCoveredCliuqe(ss, stack);//这里判断下aimnotset是不是空,是空的话不找了,直接加到stack中--待验证
+							}
+							}
+//						notset.add(aim);//如果这个点不能与之前的图形成clique,这里也就应该不需要加入到not集中;另外这里可以集中通过度数将小于阀值的全部删掉---有待验证
+//						if (clique == null||clique.isEmpty()) {// 没有找到这样一个小clique,则这个点无效,删除
+//							if (judgeClique(d2c)) {
+//								finishedthis = true;
+//								if (cand.size() > 0) {
+//									Map.Entry<Integer, HashSet<Integer>> lastEntry = od2c
+//											.lastEntry();
+//									aim = lastEntry.getValue().iterator()
+//											.next();
+//									notset.retainAll(graph.get(aim));
+//								}
+//								if (level + cand.size() < minCliqueSize)
+//									break;
+//								if (allContained(cand, notset))
+//									break;
+//								emitClique(prsn, cand);
+//								break;
+//							}
+//						} else {// 找到了这样一个小clique,以这个clique的点作为切分点,切分子图
+						if(clique!=null&&!clique.isEmpty()){
+							for (Integer an : clique) {//这样的个小clique的点是不是保持最小度数的条件?
 								aim = an;
 								mindeg = cand.get(aim);
 								HashMap<Integer, Integer> aimCand = updateMarkDeg(
@@ -308,7 +356,7 @@ public class MCEPredect {
 			TreeMap<Integer, HashSet<Integer>> od2c;
 			ResultNode trsn = top.getRen();
 			int level = top.getLevel();
-			if (allContained(cand, notset)) {
+			if (allContained(cand, notset)) {//要不要判断度数和结果集和的大小
 				continue;
 			}
 			d2c = top.getDeg2cand();
@@ -356,8 +404,8 @@ public class MCEPredect {
 								rnrs = rnrs.getPrev();
 							}
 							addIntoStack(smallStack);
-							notset.add(aim);//由于提前返回,要把aim加到not集中
-							stack.add(top);//当前子图不再切分；因为加入时计过数了,这里不需要再计数
+							notset.add(aim);// 由于提前返回,要把aim加到not集中
+							stack.add(top);// 当前子图不再切分；因为加入时计过数了,这里不需要再计数
 							return result;
 						}
 					}
@@ -394,10 +442,11 @@ public class MCEPredect {
 		}
 		return null;
 	}
+
 	static PrintWriter writer;
 	static StringBuilder sb;
-	static{
-		 try {
+	static {
+		try {
 			writer = new PrintWriter("outpredect");
 			sb = new StringBuilder();
 		} catch (FileNotFoundException e) {
@@ -405,24 +454,25 @@ public class MCEPredect {
 			e.printStackTrace();
 		}
 	}
-	static void close(){
+
+	static void close() {
 		writer.close();
 	}
+
 	private static void emitClique(ResultNode trsn,
 			HashMap<Integer, Integer> cand) {
-//		while (trsn != null) {
-//			sb.append(trsn.getVal()).append(" ");
-//			trsn = trsn.getPrev();
-//		}
-//		for (int i : cand.keySet()) {
-//			sb.append(i).append(" ");
-//		}
-//		writer.write(sb.toString().trim());
-//		writer.write("\n");
-//		sb.setLength(0);
-//		System.out.println(sb.toString());
+//		 while (trsn != null) {
+//		 sb.append(trsn.getVal()).append(" ");
+//		 trsn = trsn.getPrev();
+//		 }
+//		 for (int i : cand.keySet()) {
+//		 sb.append(i).append(" ");
+//		 }
+//		 writer.write(sb.toString().trim());
+//		 writer.write("\n");
+//		 sb.setLength(0);
 		cliqueNum++;
-		
+
 	}
 
 	/**
@@ -595,7 +645,7 @@ public class MCEPredect {
 
 	/**
 	 * 找出cand中与所有notset中的点都不相邻的结果
-	 * 
+	 * 这里有保序
 	 * @param size
 	 *            cand的初始大小
 	 * @param od2c
@@ -674,16 +724,23 @@ public class MCEPredect {
 	}
 
 	static String split = "\t";
+
 	public static void readInData(String filename)
 			throws NumberFormatException, IOException {
 		BufferedReader reader = new BufferedReader(new FileReader(filename));
 		String line = "";
+		line = reader.readLine();
+		if(!line.contains("\t"))
+			split = " ";
+		reader.close();
+		reader = new BufferedReader(new FileReader(filename));
 		while ((line = reader.readLine()) != null) {
-//			String[] edgepoint = line.split(" ");
-//			int node1 = Integer.valueOf(edgepoint[0]);
-//			int node2 = Integer.valueOf(edgepoint[1]);
+			// String[] edgepoint = line.split(" ");
+			// int node1 = Integer.valueOf(edgepoint[0]);
+			// int node2 = Integer.valueOf(edgepoint[1]);
 			int node1 = Integer.valueOf(line.substring(0, line.indexOf(split)));
-			int node2 = Integer.valueOf(line.substring(line.lastIndexOf(split)+1,line.length()));
+			int node2 = Integer.valueOf(line.substring(
+					line.lastIndexOf(split) + 1, line.length()));
 			HashSet<Integer> tmp = graph.get(node1);
 			if (tmp == null) {
 				tmp = new HashSet<Integer>();

@@ -17,20 +17,42 @@ public class CompareRresult {
 	 */
 	public static void main(String[] args) {
 		// TODO Auto-generated method stub
-//		new CompareRresult().test("/home/youli/workspace/MCEPredectJava/outpredect","/home/youli/workspace/MCEPredectJava/outbk");
+		new CompareRresult().testUncontain(
+				"/home/youli/workspace/MCEPredectJava/outbk",
+				"/home/youli/workspace/MCEPredectJava/outpredect");
 //		new CompareRresult().test("/home/youli/workspace/MCEPredectJava/outpredect");
-		ReadFile rf = new ReadFile();
-		rf.readFileByLines("/home/youli/workspace/MCEPredectJava/outbk");
-		rf.writeToFile("sortedbk");
+//		ReadFile rf = new ReadFile();
+//		rf.readFileByLines("/home/youli/workspace/MCEPredectJava/outpredect");
+//		rf.writeToFile("sortedpredect");
 	}
-	private void test(String file1, String file2) {
+	/**
+	 * 找出在file1中但是不在file2中的clique
+	 * @param file1
+	 * @param file2
+	 */
+	private void testUncontain(String file1, String file2) {
 		ReadFile rfi = new ReadFile();
 		ReadFile rfj = new ReadFile();
 		rfi.readFileByLines(file1);
 		rfj.readFileByLines(file2);
 		List<List<Integer>> cqi = rfi.resultfile;
 		List<List<Integer>> cqj = rfj.resultfile;
-		
+		System.out.println(file1+" size"+cqi.size());
+		System.out.println(file2+" size"+cqj.size());
+		int count = 0;
+		for(List<Integer>ci:cqi){
+			boolean found = false;
+			for(List<Integer>cj:cqj){
+				if(cj.equals(ci)){
+					found = true;
+					break;
+				}
+			}
+			if(!found){
+				System.out.println(ci.toString());
+				count++;
+			}
+		}
 	}
 	private void test(String file){
 		ReadFile rf = new ReadFile();
